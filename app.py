@@ -98,9 +98,6 @@ class SQLDataFetcher:
         self.active_conn = None
         self.active_cursor = None
         
-        # MySQL connector override for users who know it's installed
-        self.mysql_override = tk.BooleanVar(value=False)
-        
         # SQL operations variables
         self.order_by_columns = []
         self.group_by_columns = []
@@ -161,13 +158,6 @@ class SQLDataFetcher:
         db_combo['values'] = ('SQL Server', 'MySQL')
         db_combo.grid(row=0, column=1, sticky=tk.W, padx=5, pady=5)
         db_combo.bind("<<ComboboxSelected>>", self.toggle_db_fields)
-        
-        # MySQL connector override checkbox
-        ttk.Checkbutton(
-            server_frame, 
-            text="I have MySQL connector installed (bypass check)", 
-            variable=self.mysql_override
-        ).grid(row=0, column=2, sticky=tk.W, padx=5, pady=5)
         
         # Authentication type
         ttk.Label(server_frame, text="Authentication:").grid(row=1, column=0, sticky=tk.W, padx=5, pady=5)
@@ -845,27 +835,14 @@ class SQLDataFetcher:
     def connect_to_database(self):
         try:
             if self.db_type.get() == "MySQL":
-                # Check if MySQL connector is available or if override is checked
+                # Check if MySQL connector is available
                 global mysql_connector
                 
-                if not mysql_available and self.mysql_override.get():
-                    # Try to import it again if override is checked
-                    try:
-                        import mysql.connector as mysql_connector_override
-                        mysql_connector = mysql_connector_override
-                    except ImportError:
-                        messagebox.showerror(
-                            "Module Not Found",
-                            "Could not import MySQL connector module even with override.\n"
-                            "Please install it using: pip install mysql-connector-python"
-                        )
-                        return
-                elif not mysql_available and not self.mysql_override.get():
+                if not mysql_available:
                     messagebox.showerror(
                         "Missing Module", 
                         "The MySQL connector module could not be detected.\n\n"
-                        "If you already installed it, check 'I have MySQL connector installed' box.\n\n"
-                        "Otherwise, install it using: pip install mysql-connector-python"
+                        "Please install it using: pip install mysql-connector-python"
                     )
                     return
                 
