@@ -1,4 +1,4 @@
-# Mysql-data-fetcher
+# SQL-data-fetcher
 
 a complex sql generator and data display in python
 
