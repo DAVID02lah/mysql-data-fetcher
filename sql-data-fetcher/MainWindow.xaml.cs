@@ -454,6 +454,25 @@ namespace SQLDataFetcher
                 rowCount++;
                 grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
             }
+            else
+            {
+                // For subsequent joins, the left table is the right table of the previous join
+                var previousJoin = joinEntries[joinEntries.Count - 2];
+                string previousRightTable = previousJoin.RightTableComboBox?.SelectedItem?.ToString() ?? "";
+                
+                // Create a hidden ComboBox to store the left table value (needed for internal logic)
+                var leftTableCombo = new ComboBox
+                {
+                    Visibility = Visibility.Collapsed
+                };
+                leftTableCombo.Items.Add(previousRightTable);
+                leftTableCombo.SelectedIndex = 0;
+                
+                grid.Children.Add(leftTableCombo);
+                
+                // Store reference to the ComboBox
+                entry.LeftTableComboBox = leftTableCombo;
+            }
             
             // Join Type
             var joinTypeLabel = new Label { Content = "Join Type:", VerticalAlignment = VerticalAlignment.Center };
@@ -500,11 +519,37 @@ namespace SQLDataFetcher
             };
             
             // Populate with tables, excluding the left table if it's the first join
-            foreach (var tableName in selectedTables)
+            if (isFirstJoin)
             {
-                if (!isFirstJoin || tableName != entry.LeftTableComboBox?.SelectedItem?.ToString())
+                string leftTable = entry.LeftTableComboBox?.SelectedItem?.ToString() ?? "";
+                
+                foreach (var tableName in selectedTables)
                 {
-                    rightTableCombo.Items.Add(tableName);
+                    if (tableName != leftTable)
+                    {
+                        rightTableCombo.Items.Add(tableName);
+                    }
+                }
+            }
+            else
+            {
+                // For subsequent joins, exclude tables already used in previous joins
+                var usedTables = new HashSet<string>();
+                foreach (var join in joinEntries)
+                {
+                    if (join.LeftTableComboBox?.SelectedItem != null)
+                        usedTables.Add(join.LeftTableComboBox.SelectedItem.ToString() ?? "");
+                    
+                    if (join == entry) // Stop at the current join
+                        break;
+                }
+                
+                foreach (var tableName in selectedTables)
+                {
+                    if (!usedTables.Contains(tableName))
+                    {
+                        rightTableCombo.Items.Add(tableName);
+                    }
                 }
             }
             
@@ -575,9 +620,6 @@ namespace SQLDataFetcher
             
             onPanel.Children.Add(leftColumnCombo);
             
-            // Store reference to the ComboBox
-            entry.LeftColumnComboBox = leftColumnCombo;
-            
             // Equals label
             onPanel.Children.Add(new Label { Content = " = ", VerticalAlignment = VerticalAlignment.Center });
             
@@ -592,7 +634,8 @@ namespace SQLDataFetcher
             
             onPanel.Children.Add(rightColumnCombo);
             
-            // Store reference to the ComboBox
+            // Store references to the ComboBoxes
+            entry.LeftColumnComboBox = leftColumnCombo;
             entry.RightColumnComboBox = rightColumnCombo;
             
             rowCount++;
@@ -636,7 +679,7 @@ namespace SQLDataFetcher
             // Initialize column options based on selected tables
             UpdateJoinColumnOptions(entry);
         }
-        
+
         private void UpdateJoinColumnOptions(JoinEntry entry)
         {
             if (entry.LeftTableComboBox == null || entry.RightTableComboBox == null ||
@@ -1036,7 +1079,7 @@ namespace SQLDataFetcher
             }
 
             // Move to operations tab
-            MainTabControl.SelectedIndex = 3;
+            MainTabControl.SelectedIndex = 4;
         }
 
         private void AddOrderByColumn_Click(object sender, RoutedEventArgs e)
@@ -1892,7 +1935,7 @@ namespace SQLDataFetcher
                 QueryTextBox.Text = sql;
                 
                 // Move to next tab
-                MainTabControl.SelectedIndex = 4;
+                MainTabControl.SelectedIndex = 5;
             }
             catch (Exception ex)
             {
@@ -2009,21 +2052,57 @@ namespace SQLDataFetcher
                     
                     sql.Append($"{joinType} {rightTable}");
                     
-                    // Add ON condition if join type requires it and both columns are selected
+                    // Add ON condition if join type requires it 
                     bool needsOnClause = joinType != "CROSS JOIN";
                     
-                    if (needsOnClause && join.LeftColumnComboBox != null && join.RightColumnComboBox != null)
+                    if (needsOnClause)
                     {
-                        string leftCol = join.LeftColumnComboBox.SelectedItem?.ToString() ?? "";
-                        string rightCol = join.RightColumnComboBox.SelectedItem?.ToString() ?? "";
-                        
-                        if (!string.IsNullOrEmpty(leftCol) && !string.IsNullOrEmpty(rightCol))
+                        // Make sure we have valid column selections
+                        if (join.LeftColumnComboBox != null && join.RightColumnComboBox != null)
                         {
-                            sql.AppendLine($" ON {leftCol} = {rightCol}");
+                            // Get the selected column values
+                            object leftColObj = join.LeftColumnComboBox.SelectedItem;
+                            object rightColObj = join.RightColumnComboBox.SelectedItem;
+                            
+                            // Convert to strings with null checks
+                            string leftCol = leftColObj?.ToString() ?? "";
+                            string rightCol = rightColObj?.ToString() ?? "";
+                            
+                            // If either column is empty, try to use text content if the combobox is editable
+                            if (string.IsNullOrEmpty(leftCol) && join.LeftColumnComboBox.IsEditable)
+                            {
+                                leftCol = join.LeftColumnComboBox.Text;
+                            }
+                            
+                            if (string.IsNullOrEmpty(rightCol) && join.RightColumnComboBox.IsEditable)
+                            {
+                                rightCol = join.RightColumnComboBox.Text;
+                            }
+                            
+                            // Only add the ON clause if we have both column values
+                            if (!string.IsNullOrEmpty(leftCol) && !string.IsNullOrEmpty(rightCol))
+                            {
+                                sql.AppendLine($" ON {leftCol} = {rightCol}");
+                            }
+                            else
+                            {
+                                // Default to a placeholder if columns weren't properly selected
+                                string leftTable = join.LeftTableComboBox?.SelectedItem?.ToString() ?? "";
+                                
+                                if (!string.IsNullOrEmpty(leftTable) && !string.IsNullOrEmpty(rightTable))
+                                {
+                                    // Try to use common column names like 'id' as fallback
+                                    sql.AppendLine($" ON {leftTable}.id = {rightTable}.id");
+                                }
+                                else
+                                {
+                                    sql.AppendLine(); // Just add a newline as last resort
+                                }
+                            }
                         }
                         else
                         {
-                            sql.AppendLine(); // Just add a newline if we can't create a proper ON clause
+                            sql.AppendLine(); // Just add a newline if components are missing
                         }
                     }
                     else
@@ -2297,10 +2376,14 @@ namespace SQLDataFetcher
                         TimeTextBlock.Text = $"{executionTime} ms";
                         
                         // Move to results tab
-                        MainTabControl.SelectedIndex = 5;
+                        MainTabControl.SelectedIndex = 6; // Navigate to Results tab
                         
                         // Auto-adjust column widths
                         OptimizeColumnWidths_Click(null, null);
+                        
+                        // Show success message
+                        MessageBox.Show($"Query executed successfully.\nRows returned: {rowCount}", 
+                            "Success", MessageBoxButton.OK, MessageBoxImage.Information);
                     });
                 }
             }
