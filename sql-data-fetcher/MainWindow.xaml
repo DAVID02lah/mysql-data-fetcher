@@ -299,6 +299,81 @@
                     </StackPanel>
                 </Grid>
             </TabItem>
+
+            <!-- New AI Assistant Tab -->
+            <TabItem Header="AI Assistant">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    
+                    <!-- AI Configuration Section -->
+                    <GroupBox Header="AI Configuration" Grid.Row="0" Margin="10">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            
+                            <Label Grid.Column="0" Content="Gemini API Key:"/>
+                            <PasswordBox x:Name="ApiKeyPasswordBox" Grid.Column="1" Margin="5"/>
+                            <Button x:Name="SaveApiKeyButton" Grid.Column="2" Content="Save Key" Click="SaveApiKeyButton_Click" Margin="5"/>
+                        </Grid>
+                    </GroupBox>
+                    
+                    <!-- Chat History -->
+                    <ScrollViewer Grid.Row="1" Margin="10" VerticalScrollBarVisibility="Auto" x:Name="ChatScrollViewer">
+                        <StackPanel x:Name="ChatHistoryPanel">
+                            <!-- Messages will be added here dynamically -->
+                            <Border BorderBrush="#d0d0d0" BorderThickness="1" Background="#FCFCFC" 
+                                    CornerRadius="5" Margin="5" Padding="10" HorizontalAlignment="Left"
+                                    MaxWidth="500">
+                                <TextBlock TextWrapping="Wrap">
+                                    Hello! I can help you generate SQL queries using natural language. 
+                                    First, connect to a database so I can understand its structure. Then ask me anything like:
+                                    <LineBreak/>
+                                    <LineBreak/>
+                                    "Show me all customers from London"
+                                    <LineBreak/>
+                                    "Find orders with total value greater than 1000"
+                                    <LineBreak/>
+                                    "List products that haven't been ordered in the last 3 months"
+                                </TextBlock>
+                            </Border>
+                        </StackPanel>
+                    </ScrollViewer>
+                    
+                    <!-- Loading Indicator -->
+                    <Grid Grid.Row="2" Margin="10" x:Name="LoadingIndicatorPanel" Visibility="Collapsed">
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                            <TextBlock Text="Generating SQL query..." VerticalAlignment="Center"/>
+                            <ProgressBar Width="200" Height="10" IsIndeterminate="True" Margin="10,0,0,0"/>
+                        </StackPanel>
+                    </Grid>
+                    
+                    <!-- Input Section -->
+                    <Grid Grid.Row="3" Margin="10">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        
+                        <TextBox x:Name="UserInputTextBox" Grid.Column="0" MinHeight="50" 
+                                 TextWrapping="Wrap" AcceptsReturn="True" 
+                                 VerticalContentAlignment="Center" 
+                                 VerticalScrollBarVisibility="Auto"
+                                 KeyDown="UserInputTextBox_KeyDown"/>
+                        
+                        <Button x:Name="SendQueryButton" Grid.Column="1" Content="Send" 
+                                Click="SendQueryButton_Click" Margin="5" Padding="15,5" 
+                                MinHeight="50"/>
+                    </Grid>
+                </Grid>
+            </TabItem>
         </TabControl>
     </Grid>
 </Window>

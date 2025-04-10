@@ -10,9 +10,11 @@
 
   <ItemGroup>
     <PackageReference Include="EPPlus" Version="6.2.8" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
     <PackageReference Include="Microsoft.Data.SqlClient" Version="5.1.1" /> <!-- Using a version compatible with .NET 6 -->
     <PackageReference Include="MySql.Data" Version="8.1.0" />
     <PackageReference Include="CsvHelper" Version="30.0.1" />
+    <PackageReference Include="System.Net.Http.Json" Version="7.0.1" />
   </ItemGroup>
 
 </Project>
