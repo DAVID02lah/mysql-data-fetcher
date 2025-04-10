@@ -7,3 +7,5 @@ a complex sql generator and data display in python and c#
 
 # Requirements 
 dotnet-sdk 6.0.3 or higher
+
+Gemini API key is needed to use the AI Assistant to generate queries.
