@@ -17,9 +17,12 @@ using Microsoft.Data.SqlClient;
 using Microsoft.Win32;
 using MySql.Data.MySqlClient;
 using SQLDataFetcher.Models;
+using SQLDataFetcher.Services;
 using CsvHelper;
 using System.Globalization;
 using OfficeOpenXml;
+using System.Windows.Documents;
+using System.Security.Cryptography;
 
 namespace SQLDataFetcher
 {
@@ -51,6 +54,10 @@ namespace SQLDataFetcher
         private DataTable? resultData;
         private List<string> originalColumnOrder = new();
 
+        // AI Assistant variables
+        private GeminiService? geminiService;
+        private string apiKeyFileName = "api_key.enc";
+
         public MainWindow()
         {
             InitializeComponent();
@@ -60,8 +67,10 @@ namespace SQLDataFetcher
 
             // Set license context for EPPlus
             ExcelPackage.LicenseContext = LicenseContext.NonCommercial;
-        }
 
+            // Initialize AI Assistant
+            InitializeAiAssistant();
+        }
 
         private void UpdateUIForDatabaseType()
         {
@@ -135,7 +144,7 @@ namespace SQLDataFetcher
             try
             {
                 var dbType = ((ComboBoxItem)DbTypeComboBox.SelectedItem).Content.ToString();
-                var authType = ((ComboBoxItem)AuthTypeComboBox.SelectedItem).Content.ToString();
+                var authType = ((ComboBoxItem)DbTypeComboBox.SelectedItem).Content.ToString();
                 var server = ServerTextBox.Text;
                 var database = DatabaseTextBox.Text;
                 var username = UsernameTextBox.Text;
@@ -2619,5 +2628,460 @@ namespace SQLDataFetcher
             // Navigate to the Select Columns tab
             MainTabControl.SelectedIndex = 3;
         }
+
+        #region AI Assistant Implementation
+
+        private void SaveApiKeyButton_Click(object sender, RoutedEventArgs e)
+        {
+            string apiKey = ApiKeyPasswordBox.Password;
+            if (string.IsNullOrWhiteSpace(apiKey))
+            {
+                MessageBox.Show("Please enter a valid API key.", "Invalid Key", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            try
+            {
+                // Save the API key securely
+                SaveApiKey(apiKey);
+                
+                // Initialize the Gemini service
+                geminiService = new GeminiService(apiKey);
+                
+                MessageBox.Show("API key saved successfully!", "Success", MessageBoxButton.OK, MessageBoxImage.Information);
+                
+                // Clear the password box for security
+                ApiKeyPasswordBox.Clear();
+                
+                // Add a system message to the chat
+                AddSystemMessage("API key saved. I'm ready to help you generate SQL queries!");
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Failed to save API key: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private void SaveApiKey(string apiKey)
+        {
+            try
+            {
+                // This is a simple encryption method - in a production app, consider more secure options
+                // like Windows Data Protection API (DPAPI) or a proper secure credential store
+                
+                // Generate a random salt
+                byte[] salt = new byte[16];
+                using (var rng = RandomNumberGenerator.Create())
+                {
+                    rng.GetBytes(salt);
+                }
+                
+                // Create a key derivation function
+                using (var pbkdf2 = new Rfc2898DeriveBytes(
+                    Environment.MachineName + Environment.UserName, // Simple machine-specific password
+                    salt,
+                    10000)) // Number of iterations
+                {
+                    byte[] key = pbkdf2.GetBytes(32); // 256 bits
+                    byte[] iv = pbkdf2.GetBytes(16);  // 128 bits
+                    
+                    // Encrypt the API key
+                    byte[] encryptedKey;
+                    using (var aes = Aes.Create())
+                    {
+                        aes.Key = key;
+                        aes.IV = iv;
+                        
+                        using (var encryptor = aes.CreateEncryptor())
+                        using (var ms = new MemoryStream())
+                        {
+                            using (var cs = new CryptoStream(ms, encryptor, CryptoStreamMode.Write))
+                            using (var sw = new StreamWriter(cs))
+                            {
+                                sw.Write(apiKey);
+                            }
+                            
+                            encryptedKey = ms.ToArray();
+                        }
+                    }
+                    
+                    // Combine salt and encrypted key for storage
+                    byte[] dataToSave = new byte[salt.Length + encryptedKey.Length];
+                    Buffer.BlockCopy(salt, 0, dataToSave, 0, salt.Length);
+                    Buffer.BlockCopy(encryptedKey, 0, dataToSave, salt.Length, encryptedKey.Length);
+                    
+                    // Save to file - using the app's local directory instead of AppData which might require elevated permissions
+                    try
+                    {
+                        // First try the original AppData location
+                        string appDataFolder = Path.Combine(
+                            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                            "SQLDataFetcher");
+                            
+                        // Create directory if it doesn't exist
+                        if (!Directory.Exists(appDataFolder))
+                        {
+                            Directory.CreateDirectory(appDataFolder);
+                        }
+                        
+                        string filePath = Path.Combine(appDataFolder, apiKeyFileName);
+                        File.WriteAllBytes(filePath, dataToSave);
+                    }
+                    catch (UnauthorizedAccessException)
+                    {
+                        // If we can't access AppData, fall back to the application's directory
+                        string executablePath = AppDomain.CurrentDomain.BaseDirectory;
+                        string filePath = Path.Combine(executablePath, apiKeyFileName);
+                        
+                        // Try writing to the application directory
+                        try
+                        {
+                            File.WriteAllBytes(filePath, dataToSave);
+                        }
+                        catch (UnauthorizedAccessException)
+                        {
+                            // If we still can't write, try the user's Documents folder
+                            string documentsPath = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+                            string docsFolder = Path.Combine(documentsPath, "SQLDataFetcher");
+                            
+                            if (!Directory.Exists(docsFolder))
+                            {
+                                Directory.CreateDirectory(docsFolder);
+                            }
+                            
+                            filePath = Path.Combine(docsFolder, apiKeyFileName);
+                            File.WriteAllBytes(filePath, dataToSave);
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                throw new Exception($"Failed to save API key securely: {ex.Message}", ex);
+            }
+        }
+
+        private string LoadApiKey()
+        {
+            try
+            {
+                // Try multiple locations in order of preference
+                string[] possibleLocations = 
+                {
+                    // 1. AppData location
+                    Path.Combine(
+                        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                        "SQLDataFetcher",
+                        apiKeyFileName),
+                        
+                    // 2. Application directory
+                    Path.Combine(AppDomain.CurrentDomain.BaseDirectory, apiKeyFileName),
+                    
+                    // 3. Documents folder
+                    Path.Combine(
+                        Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
+                        "SQLDataFetcher",
+                        apiKeyFileName)
+                };
+                
+                // Try each location
+                byte[] savedData = null;
+                foreach (string filePath in possibleLocations)
+                {
+                    if (File.Exists(filePath))
+                    {
+                        try
+                        {
+                            savedData = File.ReadAllBytes(filePath);
+                            break; // Found and loaded the file
+                        }
+                        catch (UnauthorizedAccessException)
+                        {
+                            // Try the next location
+                            continue;
+                        }
+                    }
+                }
+                
+                if (savedData == null || savedData.Length < 16)
+                {
+                    return string.Empty; // No valid data found in any location
+                }
+                
+                // Extract salt (first 16 bytes)
+                byte[] salt = new byte[16];
+                Buffer.BlockCopy(savedData, 0, salt, 0, 16);
+                
+                // Extract encrypted data
+                byte[] encryptedKey = new byte[savedData.Length - 16];
+                Buffer.BlockCopy(savedData, 16, encryptedKey, 0, savedData.Length - 16);
+                
+                // Derive the same key using the saved salt
+                using (var pbkdf2 = new Rfc2898DeriveBytes(
+                    Environment.MachineName + Environment.UserName, // Simple machine-specific password
+                    salt,
+                    10000))
+                {
+                    byte[] key = pbkdf2.GetBytes(32); // 256 bits
+                    byte[] iv = pbkdf2.GetBytes(16);  // 128 bits
+                    
+                    // Decrypt the API key
+                    using (var aes = Aes.Create())
+                    {
+                        aes.Key = key;
+                        aes.IV = iv;
+                        
+                        using (var decryptor = aes.CreateDecryptor())
+                        using (var ms = new MemoryStream(encryptedKey))
+                        using (var cs = new CryptoStream(ms, decryptor, CryptoStreamMode.Read))
+                        using (var sr = new StreamReader(cs))
+                        {
+                            return sr.ReadToEnd();
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                // Log the exception but return empty string to avoid crashing
+                Console.WriteLine($"Error loading API key: {ex.Message}");
+                return string.Empty;
+            }
+        }
+
+        private void UserInputTextBox_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key == Key.Enter && (Keyboard.Modifiers & ModifierKeys.Shift) != ModifierKeys.Shift)
+            {
+                e.Handled = true;
+                SendQueryButton_Click(sender, e);
+            }
+        }
+
+        private async void SendQueryButton_Click(object sender, RoutedEventArgs e)
+        {
+            string userInput = UserInputTextBox.Text.Trim();
+            if (string.IsNullOrEmpty(userInput))
+            {
+                return;
+            }
+
+            // Clear the input box
+            UserInputTextBox.Text = string.Empty;
+            
+            // Add the user message to the chat
+            AddUserMessage(userInput);
+            
+            // If not connected to a database, inform the user
+            if (activeConn == null || tables.Count == 0)
+            {
+                AddSystemMessage("Please connect to a database first so I can understand the database schema.");
+                return;
+            }
+            
+            // If no API key is set, inform the user
+            if (geminiService == null)
+            {
+                // Try to load the API key
+                string apiKey = LoadApiKey();
+                if (string.IsNullOrEmpty(apiKey))
+                {
+                    AddSystemMessage("Please enter your Gemini API key first.");
+                    return;
+                }
+                else
+                {
+                    geminiService = new GeminiService(apiKey);
+                }
+            }
+            
+            try
+            {
+                // Show loading indicator
+                LoadingIndicatorPanel.Visibility = Visibility.Visible;
+                
+                // Generate database schema description
+                string schemaDescription = GeminiService.GenerateDatabaseSchemaDescription(tables);
+                
+                // Call Gemini API to generate SQL
+                string sqlQuery = await geminiService.GenerateSqlFromNaturalLanguageAsync(userInput, schemaDescription);
+                
+                // Validate the SQL (basic validation)
+                bool isValid = GeminiService.ValidateSqlQuery(sqlQuery);
+                
+                if (!isValid)
+                {
+                    AddSystemMessage("I'm sorry, but I couldn't generate a safe SQL query from your request. " +
+                                     "Please try rephrasing your question, focusing on SELECT operations only.");
+                    return;
+                }
+                
+                // Add the AI response with SQL
+                AddAiResponseWithSql(sqlQuery);
+                
+                // Populate the SQL query in the Generate Query tab
+                QueryTextBox.Text = sqlQuery;
+            }
+            catch (Exception ex)
+            {
+                AddSystemMessage($"Sorry, I encountered an error: {ex.Message}");
+            }
+            finally
+            {
+                // Hide loading indicator
+                LoadingIndicatorPanel.Visibility = Visibility.Collapsed;
+            }
+        }
+
+        private void AddUserMessage(string message)
+        {
+            Border messageBorder = new Border
+            {
+                BorderBrush = new SolidColorBrush(Color.FromRgb(200, 200, 200)),
+                BorderThickness = new Thickness(1),
+                Background = new SolidColorBrush(Color.FromRgb(230, 248, 255)),
+                CornerRadius = new CornerRadius(5),
+                Margin = new Thickness(5),
+                Padding = new Thickness(10),
+                HorizontalAlignment = HorizontalAlignment.Right,
+                MaxWidth = 500
+            };
+            
+            TextBlock messageText = new TextBlock
+            {
+                Text = message,
+                TextWrapping = TextWrapping.Wrap
+            };
+            
+            messageBorder.Child = messageText;
+            ChatHistoryPanel.Children.Add(messageBorder);
+            
+            // Scroll to the bottom
+            ChatScrollViewer.ScrollToBottom();
+        }
+
+        private void AddSystemMessage(string message)
+        {
+            Border messageBorder = new Border
+            {
+                BorderBrush = new SolidColorBrush(Color.FromRgb(208, 208, 208)),
+                BorderThickness = new Thickness(1),
+                Background = new SolidColorBrush(Color.FromRgb(252, 252, 252)),
+                CornerRadius = new CornerRadius(5),
+                Margin = new Thickness(5),
+                Padding = new Thickness(10),
+                HorizontalAlignment = HorizontalAlignment.Left,
+                MaxWidth = 500
+            };
+            
+            TextBlock messageText = new TextBlock
+            {
+                Text = message,
+                TextWrapping = TextWrapping.Wrap
+            };
+            
+            messageBorder.Child = messageText;
+            ChatHistoryPanel.Children.Add(messageBorder);
+            
+            // Scroll to the bottom
+            ChatScrollViewer.ScrollToBottom();
+        }
+
+        private void AddAiResponseWithSql(string sql)
+        {
+            Border messageBorder = new Border
+            {
+                BorderBrush = new SolidColorBrush(Color.FromRgb(208, 208, 208)),
+                BorderThickness = new Thickness(1),
+                Background = new SolidColorBrush(Color.FromRgb(252, 252, 252)),
+                CornerRadius = new CornerRadius(5),
+                Margin = new Thickness(5),
+                Padding = new Thickness(10),
+                HorizontalAlignment = HorizontalAlignment.Left,
+                MaxWidth = 700
+            };
+            
+            StackPanel panel = new StackPanel();
+            
+            TextBlock messageText = new TextBlock
+            {
+                Text = "Here's the SQL query for your request:",
+                TextWrapping = TextWrapping.Wrap,
+                Margin = new Thickness(0, 0, 0, 10)
+            };
+            
+            Border sqlBorder = new Border
+            {
+                Background = new SolidColorBrush(Color.FromRgb(240, 240, 240)),
+                Padding = new Thickness(10),
+                BorderBrush = new SolidColorBrush(Color.FromRgb(200, 200, 200)),
+                BorderThickness = new Thickness(1)
+            };
+            
+            TextBlock sqlText = new TextBlock
+            {
+                Text = sql ?? string.Empty, // Handle possible null SQL
+                TextWrapping = TextWrapping.Wrap,
+                FontFamily = new FontFamily("Consolas, Courier New, monospace"),
+                Foreground = new SolidColorBrush(Color.FromRgb(0, 100, 0))
+            };
+            
+            sqlBorder.Child = sqlText;
+            
+            Button executeButton = new Button
+            {
+                Content = "Execute this query",
+                Margin = new Thickness(0, 10, 0, 0),
+                Padding = new Thickness(10, 5, 10, 5),
+                HorizontalAlignment = HorizontalAlignment.Left
+            };
+            
+            executeButton.Click += (sender, e) =>
+            {
+                // Navigate to SQL query tab
+                MainTabControl.SelectedIndex = 5; // Index of "Generate Query" tab
+                
+                // Set the query text
+                QueryTextBox.Text = sql ?? string.Empty; // Handle possible null SQL
+                
+                // Execute the query
+                ExecuteQuery_Click(sender, e);
+            };
+            
+            panel.Children.Add(messageText);
+            panel.Children.Add(sqlBorder);
+            panel.Children.Add(executeButton);
+            
+            messageBorder.Child = panel;
+            
+            if (ChatHistoryPanel != null)
+            {
+                ChatHistoryPanel.Children.Add(messageBorder);
+                
+                // Scroll to the bottom
+                ChatScrollViewer?.ScrollToBottom();
+            }
+        }
+        
+        private void InitializeAiAssistant()
+        {
+            try
+            {
+                // Try to load the API key
+                string apiKey = LoadApiKey();
+                if (!string.IsNullOrEmpty(apiKey))
+                {
+                    geminiService = new GeminiService(apiKey);
+                    AddSystemMessage("API key loaded successfully. I'm ready to help you generate SQL queries!");
+                }
+            }
+            catch (Exception ex)
+            {
+                // Log exception but don't show a message box on startup
+                Console.WriteLine($"Failed to load API key: {ex.Message}");
+            }
+        }
+        
+        #endregion
     }
 }
