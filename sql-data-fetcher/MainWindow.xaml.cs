@@ -29,7 +29,7 @@ namespace SQLDataFetcher
     public partial class MainWindow : Window
     {
         // Constants
-        private readonly string[] AGGREGATE_FUNCTIONS = { "COUNT", "SUM", "AVG", "MIN", "MAX" };
+        private readonly string[] AGGREGATE_FUNCTIONS = { "COUNT", "SUM", "AVG", "MIN", "MAX", "GROUP_CONCAT" };
         private readonly string[] SORT_ORDERS = { "ASC", "DESC" };
         private readonly string[] JOIN_TYPES = { "INNER JOIN", "LEFT JOIN", "RIGHT JOIN", "FULL OUTER JOIN", "CROSS JOIN" };
 
@@ -1264,8 +1264,14 @@ namespace SQLDataFetcher
             // Create a panel to hold the entry controls
             var entryPanel = new StackPanel
             {
-                Orientation = Orientation.Horizontal,
                 Margin = new Thickness(5)
+            };
+            
+            // Create top row panel (function, column, alias)
+            var topRowPanel = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Margin = new Thickness(0, 5, 0, 5)
             };
             
             // Create function selection combo box
@@ -1299,24 +1305,87 @@ namespace SQLDataFetcher
                 columnComboBox.Items.Add(column);
             }
             
+            // Create alias text box and suggest button panel
+            var aliasPanel = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Margin = new Thickness(0)
+            };
+            
             // Create alias text box
             var aliasTextBox = new TextBox
             {
                 MinWidth = 150,
-                Margin = new Thickness(5),
+                Margin = new Thickness(5, 0, 0, 0),
                 ToolTip = "Custom name for this column in the results"
             };
+            
+            // Create suggest alias button
+            var suggestAliasButton = new Button
+            {
+                Content = "Suggest",
+                Margin = new Thickness(5),
+                Padding = new Thickness(5, 5, 5, 5),
+                ToolTip = "Suggest an alias based on function and column",
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            
+            // Add the button click handler
+            suggestAliasButton.Click += (s, args) => 
+            {
+                UpdateAggregateAliasSuggestion(entry);
+            };
+            
+            // Add text box and button to the alias panel
+            aliasPanel.Children.Add(aliasTextBox);
+            aliasPanel.Children.Add(suggestAliasButton);
             
             // Store references to the controls
             entry.FunctionComboBox = functionComboBox;
             entry.ColumnComboBox = columnComboBox;
             entry.AliasTextBox = aliasTextBox;
             
-            // Add event handlers to suggest alias
-            functionComboBox.SelectionChanged += (s, args) => UpdateAggregateAliasSuggestion(entry);
-            columnComboBox.SelectionChanged += (s, args) => UpdateAggregateAliasSuggestion(entry);
+            // Add controls to the top row panel
+            topRowPanel.Children.Add(new TextBlock 
+            { 
+                Text = "Function:", 
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(5)
+            });
+            topRowPanel.Children.Add(functionComboBox);
             
-            // Create remove button
+            topRowPanel.Children.Add(new TextBlock 
+            { 
+                Text = "Column:", 
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(5)
+            });
+            topRowPanel.Children.Add(columnComboBox);
+            
+            topRowPanel.Children.Add(new TextBlock 
+            { 
+                Text = "Alias:", 
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(5)
+            });
+            topRowPanel.Children.Add(aliasPanel);
+            
+            // Create "Advanced Options" button and remove button
+            var buttonsPanel = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                HorizontalAlignment = HorizontalAlignment.Right,
+                Margin = new Thickness(0, 0, 5, 0)
+            };
+            
+            var advancedOptionsButton = new Button
+            {
+                Content = "Advanced Options",
+                Margin = new Thickness(5),
+                Padding = new Thickness(5, 2, 5, 2),
+                ToolTip = "Show additional options for this aggregation"
+            };
+            
             var removeButton = new Button
             {
                 Content = "X",
@@ -1324,6 +1393,156 @@ namespace SQLDataFetcher
                 Height = 25,
                 Margin = new Thickness(5),
                 ToolTip = "Remove this entry"
+            };
+            
+            buttonsPanel.Children.Add(advancedOptionsButton);
+            buttonsPanel.Children.Add(removeButton);
+            
+            // Add top row and buttons panel to main panel
+            topRowPanel.Children.Add(buttonsPanel);
+            entryPanel.Children.Add(topRowPanel);
+            
+            // Create advanced options panel (initially hidden)
+            var advancedPanel = new StackPanel
+            {
+                Margin = new Thickness(20, 5, 5, 5),
+                Visibility = Visibility.Collapsed
+            };
+            
+            // Create DISTINCT option
+            var distinctCheckBox = new CheckBox
+            {
+                Content = "Use DISTINCT",
+                Margin = new Thickness(5),
+                IsChecked = false,
+                ToolTip = "Add DISTINCT keyword to aggregate only unique values"
+            };
+            entry.UseDistinctCheckBox = distinctCheckBox;
+            advancedPanel.Children.Add(distinctCheckBox);
+            
+            // Create separator option (mainly for GROUP_CONCAT)
+            var separatorPanel = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Margin = new Thickness(5)
+            };
+            
+            separatorPanel.Children.Add(new TextBlock
+            {
+                Text = "Separator:",
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(5)
+            });
+            
+            var separatorTextBox = new TextBox
+            {
+                Text = ", ",
+                Width = 100,
+                Margin = new Thickness(5),
+                ToolTip = "Separator string for GROUP_CONCAT function"
+            };
+            entry.SeparatorTextBox = separatorTextBox;
+            separatorPanel.Children.Add(separatorTextBox);
+            
+            advancedPanel.Children.Add(separatorPanel);
+            
+            // Create ORDER BY options (mainly for GROUP_CONCAT)
+            var orderByPanel = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Margin = new Thickness(5)
+            };
+            
+            orderByPanel.Children.Add(new TextBlock
+            {
+                Text = "ORDER BY:",
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(5)
+            });
+            
+            var orderByColumnCombo = new ComboBox
+            {
+                MinWidth = 200,
+                Margin = new Thickness(5),
+                IsEditable = true,
+                StaysOpenOnEdit = true
+            };
+            entry.OrderByColumnComboBox = orderByColumnCombo;
+            orderByPanel.Children.Add(orderByColumnCombo);
+            
+            var orderDirectionCombo = new ComboBox
+            {
+                MinWidth = 80,
+                Margin = new Thickness(5)
+            };
+            
+            foreach (var order in SORT_ORDERS)
+            {
+                orderDirectionCombo.Items.Add(order);
+            }
+            
+            orderDirectionCombo.SelectedIndex = 0; // Default to ASC
+            entry.OrderDirectionComboBox = orderDirectionCombo;
+            orderByPanel.Children.Add(orderDirectionCombo);
+            
+            advancedPanel.Children.Add(orderByPanel);
+            
+            // Add the advanced panel to the entry panel
+            entryPanel.Children.Add(advancedPanel);
+            
+            // Add event handlers
+            
+            // Toggle advanced options panel
+            advancedOptionsButton.Click += (s, args) =>
+            {
+                bool isVisible = advancedPanel.Visibility == Visibility.Visible;
+                advancedPanel.Visibility = isVisible ? Visibility.Collapsed : Visibility.Visible;
+                advancedOptionsButton.Content = isVisible ? "Advanced Options" : "Hide Advanced";
+                entry.IsAdvancedMode = !isVisible;
+            };
+            
+            // Function change handler
+            functionComboBox.SelectionChanged += (s, args) =>
+            {
+                string function = functionComboBox.SelectedItem?.ToString() ?? "";
+                bool isGroupConcat = function == "GROUP_CONCAT";
+                
+                // If GROUP_CONCAT is selected, show the advanced options
+                if (isGroupConcat && advancedPanel.Visibility != Visibility.Visible)
+                {
+                    advancedPanel.Visibility = Visibility.Visible;
+                    advancedOptionsButton.Content = "Hide Advanced";
+                    entry.IsAdvancedMode = true;
+                }
+            };
+            
+            // Selected column change handler
+            columnComboBox.SelectionChanged += (s, args) =>
+            {
+                // Update ORDER BY column options with the same column
+                if (entry.IsAdvancedMode && columnComboBox.SelectedItem != null)
+                {
+                    string column = columnComboBox.SelectedItem.ToString() ?? "";
+                    
+                    // If not already in the list, add it
+                    bool found = false;
+                    foreach (var item in orderByColumnCombo.Items)
+                    {
+                        if (item.ToString() == column)
+                        {
+                            found = true;
+                            break;
+                        }
+                    }
+                    
+                    if (!found)
+                    {
+                        orderByColumnCombo.Items.Add(column);
+                    }
+                    
+                    // Select it by default
+                    orderByColumnCombo.SelectedItem = column;
+                }
             };
             
             // Handle remove button click
@@ -1339,39 +1558,15 @@ namespace SQLDataFetcher
                 }
             };
             
-            // Add controls to the entry panel
-            entryPanel.Children.Add(new TextBlock 
-            { 
-                Text = "Function:", 
-                VerticalAlignment = VerticalAlignment.Center,
-                Margin = new Thickness(5)
-            });
-            entryPanel.Children.Add(functionComboBox);
-            
-            entryPanel.Children.Add(new TextBlock 
-            { 
-                Text = "Column:", 
-                VerticalAlignment = VerticalAlignment.Center,
-                Margin = new Thickness(5)
-            });
-            entryPanel.Children.Add(columnComboBox);
-            
-            entryPanel.Children.Add(new TextBlock 
-            { 
-                Text = "Alias:", 
-                VerticalAlignment = VerticalAlignment.Center,
-                Margin = new Thickness(5)
-            });
-            entryPanel.Children.Add(aliasTextBox);
-            
-            entryPanel.Children.Add(removeButton);
+            // Populate ORDER BY columns with the same options as main column
+            foreach (var column in GetAllAvailableColumns())
+            {
+                orderByColumnCombo.Items.Add(column);
+            }
             
             // Add the entry panel to the AggregatePanel
             // Insert before the "Add Aggregate Function" button (at index 0)
             AggregatePanel.Children.Insert(AggregatePanel.Children.Count > 0 ? 1 : 0, entryPanel);
-            
-            // Generate initial alias suggestion
-            UpdateAggregateAliasSuggestion(entry);
         }
 
         private void UpdateAggregateAliasSuggestion(AggregateEntry entry)
@@ -1840,6 +2035,7 @@ namespace SQLDataFetcher
             {
                 Content = "Remove this Combined Column",
                 Margin = new Thickness(0, 5, 0, 0),
+                Padding = new Thickness(5),
                 HorizontalAlignment = HorizontalAlignment.Center
             };
             
@@ -1993,13 +2189,70 @@ namespace SQLDataFetcher
                 string column = agg.ColumnComboBox.SelectedItem.ToString() ?? "";
                 string alias = agg.AliasTextBox?.Text ?? "";
                 
-                string aggExpr = $"{function}({column})";
-                if (!string.IsNullOrEmpty(alias))
+                // Handle the special case of GROUP_CONCAT with its advanced options
+                if (function == "GROUP_CONCAT" && agg.IsAdvancedMode)
                 {
-                    aggExpr += $" AS {alias}";
+                    // Start building the GROUP_CONCAT expression
+                    StringBuilder groupConcatExpr = new StringBuilder(function);
+                    groupConcatExpr.Append("(");
+                    
+                    // Add DISTINCT if specified
+                    if (agg.UseDistinctCheckBox?.IsChecked == true)
+                    {
+                        groupConcatExpr.Append("DISTINCT ");
+                    }
+                    
+                    // Add the column
+                    groupConcatExpr.Append(column);
+                    
+                    // Add ORDER BY if specified
+                    if (!string.IsNullOrEmpty(agg.OrderByColumnComboBox?.SelectedItem?.ToString()))
+                    {
+                        string orderByColumn = agg.OrderByColumnComboBox.SelectedItem.ToString() ?? column;
+                        string orderDirection = agg.OrderDirectionComboBox?.SelectedItem?.ToString() ?? "ASC";
+                        
+                        groupConcatExpr.Append($" ORDER BY {orderByColumn} {orderDirection}");
+                    }
+                    
+                    // Add SEPARATOR if specified
+                    if (!string.IsNullOrEmpty(agg.SeparatorTextBox?.Text))
+                    {
+                        string separator = agg.SeparatorTextBox.Text;
+                        groupConcatExpr.Append($" SEPARATOR '{separator}'");
+                    }
+                    
+                    // Close the function parenthesis
+                    groupConcatExpr.Append(")");
+                    
+                    // Add alias if specified
+                    if (!string.IsNullOrEmpty(alias))
+                    {
+                        groupConcatExpr.Append($" AS {alias}");
+                    }
+                    
+                    columnsList.Add(groupConcatExpr.ToString());
                 }
-                
-                columnsList.Add(aggExpr);
+                else
+                {
+                    // Handle standard aggregate functions (with potential DISTINCT)
+                    string aggExpr = function + "(";
+                    
+                    // Add DISTINCT if applicable (for standard functions too)
+                    if (agg.UseDistinctCheckBox?.IsChecked == true)
+                    {
+                        aggExpr += "DISTINCT ";
+                    }
+                    
+                    aggExpr += column + ")";
+                    
+                    // Add alias if specified
+                    if (!string.IsNullOrEmpty(alias))
+                    {
+                        aggExpr += $" AS {alias}";
+                    }
+                    
+                    columnsList.Add(aggExpr);
+                }
             }
             
             // Add combined columns

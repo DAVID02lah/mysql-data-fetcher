@@ -112,7 +112,7 @@
                     </GroupBox>
                     
                     <Button x:Name="ContinueToColumnsButton" Grid.Row="1" Content="Continue to Column Selection" 
-                            Click="ContinueToColumnsButton_Click" HorizontalAlignment="Center" Margin="10"/>
+                            Click="ContinueToColumnsButton_Click" HorizontalAlignment="Center" Margin="10" Padding="5"/>
                 </Grid>
             </TabItem>
 
@@ -137,7 +137,7 @@
                     </ScrollViewer>
                     
                     <Button x:Name="ContinueToColumnsButton_FromJoins" Grid.Row="2" Content="Continue to Column Selection" 
-                            Click="ContinueToColumnsButton_FromJoins_Click" HorizontalAlignment="Center" Margin="10"/>
+                            Click="ContinueToColumnsButton_FromJoins_Click" HorizontalAlignment="Center" Margin="10" Padding="5"/>
                 </Grid>
             </TabItem>
 
@@ -153,7 +153,7 @@
                     </TabControl>
                     
                     <Button x:Name="ContinueToOperationsButton" Grid.Row="1" Content="Continue to Operations" 
-                            Click="ContinueToOperationsButton_Click" HorizontalAlignment="Center" Margin="10"/>
+                            Click="ContinueToOperationsButton_Click" HorizontalAlignment="Center" Margin="10" Padding="5"/>
                 </Grid>
             </TabItem>
 
@@ -169,7 +169,7 @@
                             <ScrollViewer>
                                 <StackPanel x:Name="OrderByPanel">
                                     <Button Content="Add Order By Column" Click="AddOrderByColumn_Click" 
-                                            HorizontalAlignment="Left" Margin="10"/>
+                                            HorizontalAlignment="Left" Margin="10" Padding="5"/>
                                 </StackPanel>
                             </ScrollViewer>
                         </TabItem>
@@ -178,7 +178,7 @@
                             <ScrollViewer>
                                 <StackPanel x:Name="GroupByPanel">
                                     <Button Content="Add Group By Column" Click="AddGroupByColumn_Click" 
-                                            HorizontalAlignment="Left" Margin="10"/>
+                                            HorizontalAlignment="Left" Margin="10" Padding="5"/>
                                 </StackPanel>
                             </ScrollViewer>
                         </TabItem>
@@ -187,7 +187,7 @@
                             <ScrollViewer>
                                 <StackPanel x:Name="AggregatePanel">
                                     <Button Content="Add Aggregate Function" Click="AddAggregateFunction_Click" 
-                                            HorizontalAlignment="Left" Margin="10"/>
+                                            HorizontalAlignment="Left" Margin="10" Padding="5"/>
                                 </StackPanel>
                             </ScrollViewer>
                         </TabItem>
@@ -196,7 +196,7 @@
                             <ScrollViewer>
                                 <StackPanel x:Name="WherePanel">
                                     <Button Content="Add Where Condition" Click="AddWhereCondition_Click" 
-                                            HorizontalAlignment="Left" Margin="10"/>
+                                            HorizontalAlignment="Left" Margin="10" Padding="5"/>
                                 </StackPanel>
                             </ScrollViewer>
                         </TabItem>
@@ -210,14 +210,14 @@
                                         You can create multiple combined columns - each will appear as a separate COALESCE function.
                                     </TextBlock>
                                     <Button Content="Add New Combined Column" Click="AddCombinedColumn_Click" 
-                                            HorizontalAlignment="Center" Margin="10"/>
+                                            HorizontalAlignment="Center" Margin="10" Padding="5"/>
                                 </StackPanel>
                             </ScrollViewer>
                         </TabItem>
                     </TabControl>
                     
                     <Button x:Name="GenerateSqlButton" Grid.Row="1" Content="Generate SQL" 
-                            Click="GenerateSqlButton_Click" HorizontalAlignment="Center" Margin="10"/>
+                            Click="GenerateSqlButton_Click" HorizontalAlignment="Center" Margin="10" Padding="5"/>
                 </Grid>
             </TabItem>
 
@@ -234,8 +234,8 @@
                     </GroupBox>
                     
                     <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Center" Margin="10">
-                        <Button Content="Copy to Clipboard" Click="CopyToClipboard_Click" Margin="5"/>
-                        <Button Content="Execute Query" Click="ExecuteQuery_Click" Margin="5"/>
+                        <Button Content="Copy to Clipboard" Click="CopyToClipboard_Click" Margin="5" Padding="5"/>
+                        <Button Content="Execute Query" Click="ExecuteQuery_Click" Margin="5" Padding="5"/>
                     </StackPanel>
                 </Grid>
             </TabItem>
@@ -291,11 +291,11 @@
                     
                     <!-- Export Buttons -->
                     <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="10">
-                        <Button Content="Export to CSV" Click="ExportToCsv_Click" Margin="5"/>
-                        <Button Content="Export to Excel" Click="ExportToExcel_Click" Margin="5"/>
-                        <Button Content="Optimize Column Widths" Click="OptimizeColumnWidths_Click" Margin="20,5,5,5"/>
+                        <Button Content="Export to CSV" Click="ExportToCsv_Click" Margin="5" Padding="5"/>
+                        <Button Content="Export to Excel" Click="ExportToExcel_Click" Margin="5" Padding="5"/>
+                        <Button Content="Optimize Column Widths" Click="OptimizeColumnWidths_Click" Margin="20,5,5,5" Padding="5"/>
                         <Button Content="Reset Column Order" Click="ResetColumnOrder_Click" 
-                                HorizontalAlignment="Right" Margin="5"/>
+                                HorizontalAlignment="Right" Margin="5" Padding="5"/>
                     </StackPanel>
                 </Grid>
             </TabItem>
@@ -321,7 +321,7 @@
                             
                             <Label Grid.Column="0" Content="Gemini API Key:"/>
                             <PasswordBox x:Name="ApiKeyPasswordBox" Grid.Column="1" Margin="5"/>
-                            <Button x:Name="SaveApiKeyButton" Grid.Column="2" Content="Save Key" Click="SaveApiKeyButton_Click" Margin="5"/>
+                            <Button x:Name="SaveApiKeyButton" Grid.Column="2" Content="Save Key" Click="SaveApiKeyButton_Click" Margin="5" Padding="5"/>
                         </Grid>
                     </GroupBox>
                     
